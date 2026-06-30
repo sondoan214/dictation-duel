@@ -100,14 +100,23 @@
     </div>
 
     <script>
-        // === CẤU HÌNH FIREBASE ===
+        // === CẤU HÌNH FIREBASE MẶC ĐỊNH ===
         const firebaseConfig = {
             databaseURL: "https://dictation-duel-sandbox-default-rtdb.firebaseio.com/"
         };
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        
+        let database = null;
+        let isFirebaseConnected = false;
 
-        // Mảng câu hỏi gốc của bạn
+        try {
+            firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            isFirebaseConnected = true;
+        } catch (e) {
+            console.warn("Khởi tạo Firebase thất bại, chuyển sang chế độ Local Offline.");
+            isFirebaseConnected = false;
+        }
+
         let duelQuestions = [
             { vi: "Đây có lẽ là cái cốc sạch nhất rồi", en: "This is probably the cleanest cup" },
             { vi: "Mọi thứ đều khó khăn trước khi nó trở nên dễ dàng", en: "Everything is difficult before it is easy" },
@@ -184,31 +193,19 @@
             { vi: "Tối qua tôi đã làm món gà với rau củ và nó ngon tuyệt", en: "Last night I made chicken and vegetables and it was so good" }
         ];
 
-        // === ĐOẠN ĐỒNG BỘ VÀ TỰ ĐỘNG ĐẨY LÊN DATA FIREBASE (ĐÃ SỬA LỖI NGHẼN MẠNG) ===
-        database.ref('questions').once('value')
-        .then((snapshot) => {
-            const data = snapshot.val();
-            if (data && data.length > 0) {
-                duelQuestions = data;
-                console.log("Đã lấy danh sách câu hỏi từ Firebase thành công!");
-            } else {
-                return database.ref('questions').set(duelQuestions).then(() => {
-                    console.log("Đã khởi tạo danh sách câu hỏi gốc lên Firebase thành công!");
-                });
-            }
-        })
-        .catch((error) => {
-            console.warn("Không kết nối được Firebase Questions:", error.message);
-            console.log("Hệ thống tự động chạy bằng bộ câu hỏi nội bộ cục bộ.");
-        });
+        if (isFirebaseConnected && database) {
+            database.ref('questions').once('value').then((snapshot) => {
+                const data = snapshot.val();
+                if (data && data.length > 0) duelQuestions = data;
+            }).catch(() => { isFirebaseConnected = false; });
+        }
 
-        // Trạng thái cục bộ của người chơi
         let myName = "";
         let myRoom = "";
-        let myPlayerSlot = ""; // 'p1' hoặc 'p2'
+        let myPlayerSlot = ""; 
         let currentQuestionIdx = 0;
+        let forceLocalMode = false; // Cờ kích hoạt chế độ local khi mạng lỗi
 
-        // Dom elements
         const setupArea = document.getElementById('setupArea');
         const gameArea = document.getElementById('gameArea');
         const usernameInput = document.getElementById('username');
@@ -229,7 +226,7 @@
         const p2DiffOutput = document.getElementById('p2DiffOutput');
         const btnNextDuel = document.getElementById('btnNextDuel');
 
-        // 1. Nhấn nút Tham gia phòng (ĐÃ CÓ BẮT LỖI TỰ ĐỘNG CHO CHƠI OFFLINE NẾU LỖI RULES)
+        // 1. Nhấn nút Tham gia phòng (Tích hợp cơ chế cưỡng ép chạy local sau 2.5s)
         btnJoin.addEventListener('click', () => {
             myName = usernameInput.value.trim();
             myRoom = roomIdInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -239,107 +236,131 @@
                 return;
             }
 
+            // Tạo một bộ đếm thời gian. Nếu sau 2.5 giây Firebase không phản hồi -> Tự động kích hoạt Local Mode
+            const fallbackTimeout = setTimeout(() => {
+                console.warn("Firebase phản hồi quá lâu. Cưỡng ép chạy chế độ Giả lập Local.");
+                activateLocalMode();
+            }, 2500);
+
+            if (!isFirebaseConnected || !database) {
+                clearTimeout(fallbackTimeout);
+                activateLocalMode();
+                return;
+            }
+
             const roomRef = database.ref('rooms/' + myRoom);
-            
-            roomRef.once('value')
-            .then((snapshot) => {
+            roomRef.once('value').then((snapshot) => {
+                clearTimeout(fallbackTimeout);
                 let roomData = snapshot.val();
                 
-                if (!roomData) {
-                    // Mình là p1
+                if (!roomData || !roomData.p1 || !roomData.p1.name) {
                     myPlayerSlot = 'p1';
                     return roomRef.set({
                         p1: { name: myName, answer: "", submitted: false },
                         p2: { name: "", answer: "", submitted: false },
                         currentIdx: 0
                     });
-                } else if (!roomData.p2.name) {
-                    // Mình là p2
+                } else if (!roomData.p2 || !roomData.p2.name) {
                     myPlayerSlot = 'p2';
-                    return roomRef.child('p2').set({ name: myName, answer: "", submitted: false });
+                    return roomRef.update({
+                        "p1/answer": "",
+                        "p1/submitted": false,
+                        "p2": { name: myName, answer: "", submitted: false }
+                    });
                 } else {
-                    alert("Phòng này đã đầy người chơi rồi! Hãy nhập mã phòng khác.");
-                    throw new Error("Room full");
+                    if (roomData.p1.name === myName) { myPlayerSlot = 'p1'; } 
+                    else if (roomData.p2.name === myName) { myPlayerSlot = 'p2'; } 
+                    else {
+                        alert("Phòng đầy! Tự động chuyển bạn sang phòng giả lập Local.");
+                        activateLocalMode();
+                        return;
+                    }
                 }
-            })
-            .then(() => {
-                setupArea.classList.add('hidden');
-                gameArea.classList.remove('hidden');
-                roomDisplay.textContent = myRoom.toUpperCase();
-
-                listenToRoom();
-            })
-            .catch((error) => {
-                if (error.message !== "Room full") {
-                    console.error("Lỗi Firebase:", error);
-                    alert("Có lỗi Firebase (Kiểm tra lại Rules): " + error.message + "\nHệ thống sẽ cưỡng ép chuyển sang chế độ chơi để bạn kiểm tra giao diện!");
-                    
-                    // Cơ chế kích hoạt giao diện giả lập chơi cục bộ nếu Firebase của bạn bị khoá Rules hoàn toàn
-                    myPlayerSlot = 'p1';
-                    setupArea.classList.add('hidden');
-                    gameArea.classList.remove('hidden');
-                    roomDisplay.textContent = myRoom.toUpperCase() + " (LOCAL)";
-                    vietnameseQuestion.textContent = `1. ${duelQuestions[0].vi}`;
+            }).then(() => {
+                if(!forceLocalMode) {
+                    enterGameView(myRoom.toUpperCase());
+                    listenToRoom();
                 }
+            }).catch((err) => {
+                clearTimeout(fallbackTimeout);
+                activateLocalMode();
             });
         });
 
-        // 2. Lắng nghe cập nhật thời gian thực từ phòng chơi
+        function activateLocalMode() {
+            forceLocalMode = true;
+            myPlayerSlot = 'p1';
+            enterGameView(myRoom.toUpperCase() + " (LOCAL)");
+            vietnameseQuestion.textContent = `${currentQuestionIdx + 1}. ${duelQuestions[currentQuestionIdx].vi}`;
+            p1Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${myName}: Đang dịch...`;
+            p2Status.innerHTML = `<i class="fa-solid fa-circle text-indigo-400 mr-1"></i> Máy (Giả lập): Đang đợi bạn...`;
+        }
+
+        function enterGameView(roomName) {
+            setupArea.classList.add('hidden');
+            gameArea.classList.remove('hidden');
+            roomDisplay.textContent = roomName;
+        }
+
+        // 2. Lắng nghe phòng đấu real-time
         function listenToRoom() {
+            if (forceLocalMode) return;
+
             database.ref('rooms/' + myRoom).on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (!data) return;
 
                 currentQuestionIdx = data.currentIdx || 0;
-                if(currentQuestionIdx >= duelQuestions.length) currentQuestionIdx = 0;
-
                 vietnameseQuestion.textContent = `${currentQuestionIdx + 1}. ${duelQuestions[currentQuestionIdx].vi}`;
 
-                if (data.p1.name) {
+                if (data.p1 && data.p1.name) {
                     p1Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p1.name}: ${data.p1.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
                 }
-                if (data.p2.name) {
+                if (data.p2 && data.p2.name) {
                     p2Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p2.name}: ${data.p2.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
                 } else {
-                    p2Status.innerHTML = `<i class="fa-solid fa-circle text-slate-600 mr-1"></i> Đang chờ người thứ 2 vào phòng...`;
+                    p2Status.innerHTML = `<i class="fa-solid fa-circle text-slate-600 mr-1"></i> Đang chờ người thứ 2...`;
                 }
 
-                // Khi CẢ HAI cùng nộp bài
-                if (data.p1.submitted && data.p2.submitted) {
+                if (data.p1 && data.p2 && data.p1.submitted && data.p2.submitted) {
                     revealAnswers(data);
                 } else {
                     battleResult.classList.add('hidden');
-                    btnSubmit.disabled = false;
+                    if (data[myPlayerSlot] && !data[myPlayerSlot].submitted) {
+                        btnSubmit.disabled = false;
+                        btnSubmit.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Nộp Bài Giải`;
+                    }
                 }
             });
         }
 
-        // 3. Người chơi nộp câu giải
+        // 3. Nộp bài
         btnSubmit.addEventListener('click', () => {
             const ans = userTranslation.value.trim();
-            if (!ans) {
-                alert("Đừng nộp ô trống chứ!");
-                return;
-            }
+            if (!ans) return alert("Đừng nộp ô trống!");
 
-            // Nếu phòng đang chạy ở chế độ Local cứu hộ do lỗi Rules Firebase
-            if(roomDisplay.textContent.includes("LOCAL")) {
+            btnSubmit.disabled = true;
+
+            if (forceLocalMode) {
+                // Chế độ local: Lấy luôn câu trả lời chuẩn làm bài của Máy để đối chiếu
                 let fakeData = {
                     p1: { name: myName, answer: ans, submitted: true },
                     p2: { name: "Máy (Giả lập)", answer: duelQuestions[currentQuestionIdx].en, submitted: true }
                 };
+                p1Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${myName}: Đã nộp`;
+                p2Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> Máy (Giả lập): Đã nộp`;
                 revealAnswers(fakeData);
                 return;
             }
 
+            btnSubmit.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Đang đợi đối thủ...`;
             database.ref(`rooms/${myRoom}/${myPlayerSlot}`).update({
                 answer: ans,
                 submitted: true
             });
-            btnSubmit.disabled = true;
         });
 
-        // 4. Công bố kết quả
+        // 4. Kết quả công bố
         function revealAnswers(roomData) {
             const targetAnswer = duelQuestions[currentQuestionIdx].en;
             correctAnswerDisplay.textContent = targetAnswer;
@@ -353,19 +374,19 @@
             battleResult.classList.remove('hidden');
         }
 
-        // 5. Chuyển câu đấu tiếp theo
+        // 5. Qua câu tiếp theo
         btnNextDuel.addEventListener('click', () => {
-            let nextIdx = currentQuestionIdx + 1;
-            if (nextIdx >= duelQuestions.length) {
-                nextIdx = 0; 
-            }
-
-            if(roomDisplay.textContent.includes("LOCAL")) {
+            let nextIdx = (currentQuestionIdx + 1) % duelQuestions.length;
+            
+            if (forceLocalMode) {
                 currentQuestionIdx = nextIdx;
                 vietnameseQuestion.textContent = `${currentQuestionIdx + 1}. ${duelQuestions[currentQuestionIdx].vi}`;
                 userTranslation.value = "";
                 battleResult.classList.add('hidden');
                 btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Nộp Bài Giải`;
+                p1Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${myName}: Đang dịch...`;
+                p2Status.innerHTML = `<i class="fa-solid fa-circle text-indigo-400 mr-1"></i> Máy (Giả lập): Đang đợi bạn...`;
                 return;
             }
 
@@ -380,7 +401,6 @@
             userTranslation.value = "";
         });
 
-        // === THUẬT TOÁN ĐỐI CHIẾU CHỮ GỐC ===
         function generateDiffHTML(targetText, userStr) {
             function cleanWord(word) {
                 return word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"");
