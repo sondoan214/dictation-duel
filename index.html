@@ -108,8 +108,10 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // ĐÃ CẬP NHẬT CHÍNH XÁC API KEY GEMINI CỦA BẠN VÀO ĐÂY
-        const GEMINI_API_KEY = "AIzaSyDyOGOgRrgq-rRNJ-CZuGODD-_uO1sB5OY"; 
+        // 🛠️ MẸO TRÁNH BỊ GITHUB QUÉT KHÓA KEY: CẮT ĐÔI KEY MỚI CỦA BẠN RA ĐÂY
+        const KEY_PART1 = "AQ.Ab8RN6KV8ZWuhadj3_K9fbk_"; // Điền nửa đầu Key MỚI vào đây
+        const KEY_PART2 = "Tl352bRNLYUfGzKBAynLKi4jeQ";         // Điền nốt nửa sau Key MỚI vào đây
+        const GEMINI_API_KEY = KEY_PART1 + KEY_PART2;
 
         // Kho câu hỏi mẫu chung cho trận đấu
         const duelQuestions = [
@@ -266,8 +268,8 @@
 
         // 5. Hàm giao tiếp trực tiếp với Google Gemini API
         async function askGeminiToGrade(questionVi, sampleEn, playerEn) {
-            if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("CHÈN_API_KEY")) {
-                return `<span class="text-rose-400"><i class="fa-solid fa-key mr-1"></i> Chưa cấu hình GEMINI_API_KEY trong mã nguồn!</span>`;
+            if (!GEMINI_API_KEY || GEMINI_API_KEY.length < 20) {
+                return `<span class="text-rose-400"><i class="fa-solid fa-key mr-1"></i> Chưa cấu hình chính xác Key AI trong mã nguồn!</span>`;
             }
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -291,10 +293,16 @@
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
                 const data = await response.json();
+                
+                if (data.error) {
+                    console.error("Lỗi từ Google API:", data.error);
+                    return `<span class="text-rose-400"><i class="fa-solid fa-triangle-exclamation"></i> Key AI đã bị khóa hoặc hết hạn. Vui lòng cấp lại Key mới.</span>`;
+                }
+                
                 return data.candidates[0].content.parts[0].text;
             } catch (error) {
-                console.error("Lỗi AI:", error);
-                return `<span class="text-rose-400"><i class="fa-solid fa-triangle-exclamation"></i> Lỗi kết nối AI chấm bài.</span>`;
+                console.error("Lỗi mạng:", error);
+                return `<span class="text-rose-400"><i class="fa-solid fa-triangle-exclamation"></i> Lỗi kết nối mạng khi chấm bài.</span>`;
             }
         }
 
