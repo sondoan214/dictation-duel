@@ -100,9 +100,16 @@
     </div>
 
     <script>
-        // === CẤU HÌNH FIREBASE MẶC ĐỊNH ===
+        // === CẤU HÌNH FIREBASE CHÍNH XÁC TỪ CONSOLE ===
         const firebaseConfig = {
-            databaseURL: "https://dictation-duel-sandbox-default-rtdb.firebaseio.com/"
+            apiKey: "AIzaSyAOFJ2zFfvStGSitNEgcIG5sCrXSlRziMc",
+            authDomain: "dictation-duel.firebaseapp.com",
+            databaseURL: "https://dictation-duel-default-rtdb.firebaseio.com",
+            projectId: "dictation-duel",
+            storageBucket: "dictation-duel.firebasestorage.app",
+            messagingSenderId: "77968104604",
+            appId: "1:77968104604:web:489126c2010a8ad7aa6159",
+            measurementId: "G-JWZQPZQX8T"
         };
         
         let database = null;
@@ -113,7 +120,7 @@
             database = firebase.database();
             isFirebaseConnected = true;
         } catch (e) {
-            console.warn("Khởi tạo Firebase thất bại, chuyển sang chế độ Local Offline.");
+            console.warn("Khởi tạo Firebase thất bại, chuyển sang chế độ Local Offline.", e);
             isFirebaseConnected = false;
         }
 
@@ -193,6 +200,7 @@
             { vi: "Tối qua tôi đã làm món gà với rau củ và nó ngon tuyệt", en: "Last night I made chicken and vegetables and it was so good" }
         ];
 
+        // Tải câu hỏi từ Firebase nếu có sẵn dữ liệu trên cloud
         if (isFirebaseConnected && database) {
             database.ref('questions').once('value').then((snapshot) => {
                 const data = snapshot.val();
@@ -204,7 +212,7 @@
         let myRoom = "";
         let myPlayerSlot = ""; 
         let currentQuestionIdx = 0;
-        let forceLocalMode = false; // Cờ kích hoạt chế độ local khi mạng lỗi
+        let forceLocalMode = false;
 
         const setupArea = document.getElementById('setupArea');
         const gameArea = document.getElementById('gameArea');
@@ -226,7 +234,7 @@
         const p2DiffOutput = document.getElementById('p2DiffOutput');
         const btnNextDuel = document.getElementById('btnNextDuel');
 
-        // 1. Nhấn nút Tham gia phòng (Tích hợp cơ chế cưỡng ép chạy local sau 2.5s)
+        // 1. Nhập tên phòng và Tham Gia
         btnJoin.addEventListener('click', () => {
             myName = usernameInput.value.trim();
             myRoom = roomIdInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -236,9 +244,9 @@
                 return;
             }
 
-            // Tạo một bộ đếm thời gian. Nếu sau 2.5 giây Firebase không phản hồi -> Tự động kích hoạt Local Mode
+            // Cơ chế bảo vệ: Quá 2.5s không phản hồi (do nghẽn/chưa mở Rules) tự động chạy Local Offline
             const fallbackTimeout = setTimeout(() => {
-                console.warn("Firebase phản hồi quá lâu. Cưỡng ép chạy chế độ Giả lập Local.");
+                console.warn("Kết nối Firebase phản hồi lâu. Tự động chạy phòng giả lập Local.");
                 activateLocalMode();
             }, 2500);
 
@@ -302,7 +310,7 @@
             roomDisplay.textContent = roomName;
         }
 
-        // 2. Lắng nghe phòng đấu real-time
+        // 2. Lắng nghe cập nhật phòng trực tuyến
         function listenToRoom() {
             if (forceLocalMode) return;
 
@@ -334,7 +342,7 @@
             });
         }
 
-        // 3. Nộp bài
+        // 3. Xử lý nộp câu trả lời
         btnSubmit.addEventListener('click', () => {
             const ans = userTranslation.value.trim();
             if (!ans) return alert("Đừng nộp ô trống!");
@@ -342,7 +350,6 @@
             btnSubmit.disabled = true;
 
             if (forceLocalMode) {
-                // Chế độ local: Lấy luôn câu trả lời chuẩn làm bài của Máy để đối chiếu
                 let fakeData = {
                     p1: { name: myName, answer: ans, submitted: true },
                     p2: { name: "Máy (Giả lập)", answer: duelQuestions[currentQuestionIdx].en, submitted: true }
@@ -360,7 +367,7 @@
             });
         });
 
-        // 4. Kết quả công bố
+        // 4. Hiển thị bảng so sánh kết quả cụ thể
         function revealAnswers(roomData) {
             const targetAnswer = duelQuestions[currentQuestionIdx].en;
             correctAnswerDisplay.textContent = targetAnswer;
@@ -374,7 +381,7 @@
             battleResult.classList.remove('hidden');
         }
 
-        // 5. Qua câu tiếp theo
+        // 5. Chuyển sang lượt kế tiếp
         btnNextDuel.addEventListener('click', () => {
             let nextIdx = (currentQuestionIdx + 1) % duelQuestions.length;
             
@@ -401,6 +408,7 @@
             userTranslation.value = "";
         });
 
+        // Hàm so sánh chuỗi kí tự thuật toán Diff
         function generateDiffHTML(targetText, userStr) {
             function cleanWord(word) {
                 return word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"");
