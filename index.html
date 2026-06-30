@@ -26,9 +26,13 @@
                 <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tên của bạn:</label>
                 <input id="username" type="text" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-white" placeholder="Ví dụ: Anh Tuấn">
             </div>
-            <div class="mb-6">
+            <div class="mb-4">
                 <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Mã phòng (Gõ giống nhau để vào chung):</label>
                 <input id="roomId" type="text" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-white font-mono" placeholder="Ví dụ: ĐấuTrường123">
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Gemini API Key của bạn (Sẽ bảo mật trên trình duyệt):</label>
+                <input id="geminiKeyInput" type="password" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-white font-mono" placeholder="Nhập API Key AIzaSy...">
             </div>
             <button id="btnJoin" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-xl transition">
                 Vào Phòng Đấu
@@ -108,8 +112,8 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // ĐÃ ĐIỀN CHÍNH XÁC KEY MỚI NHẤT CỦA BẠN (ĐUÔI GtDvDg) VÀO ĐÂY
-        const GEMINI_API_KEY = "AQ.Ab8RN6ILJVZ6Agvzj0vOgI4c5g7Tk7jhcMoYIARsOj5lGtDvDg";
+        // Biến lưu động Key lấy từ localStorage hoặc ô nhập liệu
+        let GEMINI_API_KEY = localStorage.getItem("my_gemini_key") || "";
 
         // Kho câu hỏi mẫu chung cho trận đấu
         const duelQuestions = [
@@ -132,6 +136,7 @@
         const gameArea = document.getElementById('gameArea');
         const usernameInput = document.getElementById('username');
         const roomIdInput = document.getElementById('roomId');
+        const geminiKeyInput = document.getElementById('geminiKeyInput');
         const btnJoin = document.getElementById('btnJoin');
         const roomDisplay = document.getElementById('roomDisplay');
         const vietnameseQuestion = document.getElementById('vietnameseQuestion');
@@ -148,15 +153,24 @@
         const p2DiffOutput = document.getElementById('p2DiffOutput');
         const btnNextDuel = document.getElementById('btnNextDuel');
 
+        // Điền lại key nếu đã từng nhập trước đó
+        if (GEMINI_API_KEY) {
+            geminiKeyInput.value = GEMINI_API_KEY;
+        }
+
         // 1. Nhấn nút Tham gia phòng
         btnJoin.addEventListener('click', () => {
             myName = usernameInput.value.trim();
             myRoom = roomIdInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+            GEMINI_API_KEY = geminiKeyInput.value.trim();
 
-            if (!myName || !myRoom) {
-                alert("Vui lòng điền đầy đủ Tên và Mã phòng!");
+            if (!myName || !myRoom || !GEMINI_API_KEY) {
+                alert("Vui lòng điền đầy đủ Tên, Mã phòng và API Key!");
                 return;
             }
+
+            // Lưu Key vào máy cá nhân để lần sau không cần gõ lại
+            localStorage.setItem("my_gemini_key", GEMINI_API_KEY);
 
             const roomRef = database.ref('rooms/' + myRoom);
             
@@ -267,7 +281,7 @@
         // 5. Hàm giao tiếp trực tiếp với Google Gemini API
         async function askGeminiToGrade(questionVi, sampleEn, playerEn) {
             if (!GEMINI_API_KEY || GEMINI_API_KEY.length < 20) {
-                return `<span class="text-rose-400"><i class="fa-solid fa-key mr-1"></i> Chưa cấu hình chính xác Key AI trong mã nguồn!</span>`;
+                return `<span class="text-rose-400"><i class="fa-solid fa-key mr-1"></i> Chưa cấu hình chính xác Key AI trong cấu hình phòng!</span>`;
             }
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -294,7 +308,7 @@
                 
                 if (data.error) {
                     console.error("Lỗi từ Google API:", data.error);
-                    return `<span class="text-rose-400"><i class="fa-solid fa-triangle-exclamation"></i> Key AI gặp sự cố kỹ thuật từ Google API.</span>`;
+                    return `<span class="text-rose-400"><i class="fa-solid fa-triangle-exclamation"></i> Key AI gặp sự cố kỹ thuật hoặc sai định dạng.</span>`;
                 }
                 
                 return data.candidates[0].content.parts[0].text;
