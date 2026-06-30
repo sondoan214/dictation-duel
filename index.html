@@ -63,11 +63,11 @@
 
             <div id="battleResult" class="hidden bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4">
                 <h3 class="text-lg font-bold text-amber-400 border-b border-slate-700 pb-2">
-                    <i class="fa-solid fa-trophy mr-2"></i>Kết Quả Đối Kháng Chi Tiết
+                    <i class="fa-solid fa-trophy mr-2"></i>Kết Quả Đối Kháng Chi Tiết (AI Chấm Điểm)
                 </h3>
 
                 <div class="p-3 bg-slate-900 rounded-xl border border-emerald-500/30">
-                    <span class="text-xs font-bold text-emerald-400 uppercase block mb-1">Đáp án chuẩn của hệ thống:</span>
+                    <span class="text-xs font-bold text-emerald-400 uppercase block mb-1">Đáp án mẫu của hệ thống:</span>
                     <p id="correctAnswerDisplay" class="font-mono text-sm font-bold text-emerald-300"></p>
                 </div>
 
@@ -94,9 +94,7 @@
     </div>
 
     <script>
-        // =========================================================================
-        // !!! CHÚ Ý: BẮT BUỘC PHẢI THAY THÔNG TIN CỦA BẠN VÀO ĐÂY ĐỂ CHẠY ĐƯỢC !!!
-        // =========================================================================
+        // Cấu hình Firebase thật của bạn
         const firebaseConfig = {
             apiKey: "AIzaSyAOFJ2zFfvStGSitNEgcIG5sCrXSlRziMc",
             authDomain: "dictation-duel.firebaseapp.com",
@@ -110,6 +108,9 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
+        // ĐÃ ĐIỀN API KEY GEMINI AI CỦA BẠN VÀO ĐÂY
+        const GEMINI_API_KEY = "AQ.Ab8RN6JSTJfdfVXTPFjWCqD8iKA6fssrKzxudY2ADVaxYw_QUQ"; 
+
         // Kho câu hỏi mẫu chung cho trận đấu
         const duelQuestions = [
             { vi: "đây có lẽ là cái cốc sạch nhất rồi", en: "this is probably the cleanest cup" },
@@ -121,9 +122,10 @@
         // Trạng thái local của người chơi
         let myName = "";
         let myRoom = "";
-        let myPlayerSlot = ""; // 'p1' hoặc 'p2'
+        let myPlayerSlot = ""; 
         let currentQuestionIdx = 0;
-        let localCurrentIdx = -1; // Biến theo dõi để tự động chuyển câu mới mượt mà giữa các máy
+        let localCurrentIdx = -1; 
+        let isAiGrading = false; 
 
         // Dom elements
         const setupArea = document.getElementById('setupArea');
@@ -162,7 +164,6 @@
                 let roomData = snapshot.val();
                 
                 if (!roomData) {
-                    // Nếu phòng chưa có ai, mình là Người chơi 1 (p1)
                     myPlayerSlot = 'p1';
                     roomRef.set({
                         p1: { name: myName, answer: "", submitted: false },
@@ -170,47 +171,42 @@
                         currentIdx: 0
                     });
                 } else if (!roomData.p2 || !roomData.p2.name) {
-                    // ĐÃ SỬA LỖI: Kiểm tra an toàn xem p2 đã tồn tại chưa để tránh crash web
                     myPlayerSlot = 'p2';
                     roomRef.child('p2').set({ name: myName, answer: "", submitted: false });
                 } else {
-                    // Phòng đã đủ 2 người
                     alert("Phòng này đã đầy người chơi rồi! Hãy nhập mã phòng khác.");
                     return;
                 }
 
-                // Chuyển đổi màn hình giao diện
                 setupArea.classList.add('hidden');
                 gameArea.classList.remove('hidden');
                 roomDisplay.textContent = myRoom.toUpperCase();
 
-                // Bắt đầu lắng nghe biến động thời gian thực từ phòng chơi
                 listenToRoom();
             }).catch(err => {
                 console.error(err);
-                alert("Không kết nối được Firebase! Hãy kiểm tra lại thông tin config hoặc tab Rules (Luật bảo mật) trên Firebase.");
+                alert("Không kết nối được Firebase! Hãy kiểm tra lại tab Rules (Luật bảo mật) trên Firebase.");
             });
         });
 
         // 2. Lắng nghe cập nhật thời gian thực từ Firebase
         function listenToRoom() {
-            database.ref('rooms/' + myRoom).on('value', (snapshot) => {
+            database.ref('rooms/' + myRoom).on('value', async (snapshot) => {
                 const data = snapshot.val();
                 if (!data) return;
 
                 currentQuestionIdx = data.currentIdx || 0;
                 vietnameseQuestion.textContent = `${currentQuestionIdx + 1}. ${duelQuestions[currentQuestionIdx].vi}`;
 
-                // ĐÃ SỬA LỖI: Tự động reset giao diện, xóa chữ cũ khi có bất kỳ ai nhấn "Qua Câu Tiếp Theo"
                 if (currentQuestionIdx !== localCurrentIdx) {
                     localCurrentIdx = currentQuestionIdx;
                     userTranslation.value = ""; 
                     userTranslation.disabled = false;
                     btnSubmit.disabled = false;
                     battleResult.classList.add('hidden');
+                    isAiGrading = false; 
                 }
 
-                // Cập nhật thanh hiển thị trạng thái đã nộp bài hay chưa công bằng
                 if (data.p1 && data.p1.name) {
                     p1Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p1.name}: ${data.p1.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
                 }
@@ -220,9 +216,10 @@
                     p2Status.innerHTML = `<i class="fa-solid fa-circle text-slate-600 mr-1"></i> Đang chờ người thứ 2 vào phòng...`;
                 }
 
-                // ĐIỀU KIỆN KÍCH HOẠT: Khi cả 2 người cùng nộp bài (submitted == true)
-                if (data.p1 && data.p2 && data.p1.submitted && data.p2.submitted) {
-                    revealAnswers(data);
+                // Khi cả hai cùng nộp bài và AI chưa chấm điểm
+                if (data.p1 && data.p2 && data.p1.submitted && data.p2.submitted && !isAiGrading) {
+                    isAiGrading = true; 
+                    await revealAnswers(data);
                 }
             });
         }
@@ -235,38 +232,79 @@
                 return;
             }
 
-            // Gửi dữ liệu bài làm lên Firebase slot của chính mình
             database.ref(`rooms/${myRoom}/${myPlayerSlot}`).update({
                 answer: ans,
                 submitted: true
             });
-            btnSubmit.disabled = true; // Khóa nút sau khi nộp
-            userTranslation.disabled = true; // Khóa ô nhập không cho sửa sau khi nộp
+            btnSubmit.disabled = true; 
+            userTranslation.disabled = true; 
         });
 
-        // 4. Công bố kết quả và hiển thị bài làm của cả hai bên
-        function revealAnswers(roomData) {
+        // 4. Kích hoạt AI chấm điểm và hiển thị kết quả
+        async function revealAnswers(roomData) {
+            const vietnameseQ = duelQuestions[currentQuestionIdx].vi;
             const targetAnswer = duelQuestions[currentQuestionIdx].en;
+            
             correctAnswerDisplay.textContent = targetAnswer;
-
             p1NameTitle.textContent = `${roomData.p1.name} đã dịch:`;
             p2NameTitle.textContent = `${roomData.p2.name} đã dịch:`;
 
-            // Dùng thuật toán so sánh từ để render lỗi sai cho cả Player 1 và Player 2
-            p1DiffOutput.innerHTML = generateDiffHTML(targetAnswer, roomData.p1.answer);
-            p2DiffOutput.innerHTML = generateDiffHTML(targetAnswer, roomData.p2.answer);
-
+            // Hiệu ứng chờ kết quả chấm từ Robot AI
+            p1DiffOutput.innerHTML = `<span class="text-slate-400 italic animate-pulse"><i class="fa-solid fa-robot mr-1"></i> AI đang phân tích bài dịch...</span>`;
+            p2DiffOutput.innerHTML = `<span class="text-slate-400 italic animate-pulse"><i class="fa-solid fa-robot mr-1"></i> AI đang phân tích bài dịch...</span>`;
             battleResult.classList.remove('hidden');
+
+            // Gọi AI phân tích song song bài làm của cả hai bên
+            const [reviewP1, reviewP2] = await Promise.all([
+                askGeminiToGrade(vietnameseQ, targetAnswer, roomData.p1.answer),
+                askGeminiToGrade(vietnameseQ, targetAnswer, roomData.p2.answer)
+            ]);
+
+            p1DiffOutput.innerHTML = reviewP1;
+            p2DiffOutput.innerHTML = reviewP2;
         }
 
-        // 5. Nút chuyển sang câu đấu tiếp theo (Bất kỳ ai bấm nút này, cả 2 máy sẽ cùng chuyển)
+        // 5. Hàm giao tiếp trực tiếp với Google Gemini API
+        async function askGeminiToGrade(questionVi, sampleEn, playerEn) {
+            if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("CHÈN_API_KEY")) {
+                return `<span class="text-rose-400"><i class="fa-solid fa-key mr-1"></i> Chưa cấu hình GEMINI_API_KEY trong mã nguồn!</span>`;
+            }
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            
+            const prompt = `
+            Bạn là một giáo viên tiếng Anh chấm bài dịch thuật.
+            Câu gốc tiếng Việt: "${questionVi}"
+            Đáp án mẫu tham khảo: "${sampleEn}"
+            Bài làm của học sinh: "${playerEn}"
+            
+            Hãy chấm điểm bài làm của học sinh trên thang điểm 100 dựa vào độ chính xác về mặt ngữ nghĩa và ngữ pháp (không bắt bẻ từng từ giống hệt đáp án mẫu, chấp nhận từ đồng nghĩa hoặc cấu trúc câu đúng khác).
+            YÊU CẦU BẮT BUỘC: Chỉ trả về nội dung bằng tiếng Việt theo định dạng HTML ngắn gọn như sau, tuyệt đối không viết thêm từ nào khác ngoài định dạng này:
+            <strong>Điểm: <span class="text-amber-400">[Số điểm]%</span></strong><br>
+            <p class="text-slate-300 mt-1">Nội dung nhận xét cụ thể lỗi sai hoặc lời khen ngắn gọn dưới 20 từ.</p>
+            `;
+
+            try {
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await response.json();
+                return data.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error("Lỗi AI:", error);
+                return `<span class="text-rose-400"><i class="fa-solid fa-triangle-exclamation"></i> Lỗi kết nối AI chấm bài.</span>`;
+            }
+        }
+
+        // 6. Nút chuyển sang câu đấu tiếp theo
         btnNextDuel.addEventListener('click', () => {
             let nextIdx = currentQuestionIdx + 1;
             if (nextIdx >= duelQuestions.length) {
-                nextIdx = 0; // Quay vòng lại câu 1 nếu hết câu hỏi
+                nextIdx = 0; 
             }
 
-            // Reset trạng thái nộp bài của cả 2 slot về mặc định để chuẩn bị câu mới
             database.ref('rooms/' + myRoom).update({
                 currentIdx: nextIdx,
                 "p1/submitted": false,
@@ -275,46 +313,6 @@
                 "p2/answer": ""
             });
         });
-
-        // Thuật toán so sánh từng từ thông minh
-        function generateDiffHTML(targetText, userStr) {
-            function cleanWord(word) {
-                return word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"");
-            }
-            const targetWords = targetText.split(/\s+/);
-            const userWords = userStr.split(/\s+/).filter(w => w !== "");
-
-            let outputHTML = "";
-            let tIdx = 0, uIdx = 0;
-
-            while (tIdx < targetWords.length || uIdx < userWords.length) {
-                const tWord = targetWords[tIdx];
-                const uWord = userWords[uIdx];
-
-                if (tWord && uWord && cleanWord(tWord) === cleanWord(uWord)) {
-                    outputHTML += `<span class="text-emerald-400 font-bold">${uWord}</span> `;
-                    tIdx++; uIdx++;
-                } else if (tWord && uWord && cleanWord(tWord) !== cleanWord(uWord)) {
-                    if (targetWords[tIdx + 1] && cleanWord(targetWords[tIdx + 1]) === cleanWord(uWord)) {
-                        outputHTML += `<span class="text-amber-500 line-through">[Thiếu]</span> `;
-                        tIdx++;
-                    } else if (userWords[uIdx + 1] && cleanWord(tWord) === cleanWord(userWords[uIdx + 1])) {
-                        outputHTML += `<span class="text-rose-500 line-through">${uWord}</span> `;
-                        uIdx++;
-                    } else {
-                        outputHTML += `<span class="text-rose-400 border-b border-rose-500 font-bold">${uWord}</span> <span class="text-slate-500 text-xs">(${tWord})</span> `;
-                        tIdx++; uIdx++;
-                    }
-                } else if (!tWord && uWord) {
-                    outputHTML += `<span class="text-rose-500 line-through">${uWord}</span> `;
-                    uIdx++;
-                } else if (tWord && !uWord) {
-                    outputHTML += `<span class="text-amber-500 line-through">[Thiếu]</span> `;
-                    tIdx++;
-                }
-            }
-            return outputHTML.trim();
-        }
     </script>
 </body>
 </html>
