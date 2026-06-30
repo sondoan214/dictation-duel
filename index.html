@@ -1,635 +1,424 @@
 <!DOCTYPE html>
-
 <html lang="vi">
-
 <head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Dictation Duel - Đối Kháng 2 Người</title>
-
-<script src="https://cdn.tailwindcss.com"></script>
-
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dictation Duel - Đối Kháng 2 Người</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
-
 <body class="bg-slate-900 min-h-screen text-slate-100 font-sans">
 
-
-
-<div class="max-w-4xl mx-auto px-4 py-8">
-
-<header class="text-center mb-8">
-
-<h1 class="text-3xl font-extrabold text-amber-500 mb-2">
-
-<i class="fa-solid fa-bolt mr-2"></i>Dictation Duel (Chơi 2 Người)
-
-</h1>
-
-<p class="text-slate-400 text-sm">Vào chung một Phòng, dịch câu và xem đáp án của nhau theo thời gian thực.</p>
-
-</header>
-
-
-
-<div id="setupArea" class="bg-slate-800 p-6 rounded-2xl border border-slate-700 max-w-md mx-auto shadow-xl">
-
-<h2 class="text-lg font-bold mb-4 text-slate-200"><i class="fa-solid fa-door-open mr-2 text-amber-500"></i>Thiết Lập Phòng Chơi</h2>
-
-<div class="mb-4">
-
-<label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tên của bạn:</label>
-
-<input id="username" type="text" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-white" placeholder="Ví dụ: Anh Tuấn">
-
-</div>
-
-<div class="mb-6">
-
-<label class="block text-xs font-bold text-slate-400 uppercase mb-1">Mã phòng (Gõ giống nhau để vào chung):</label>
-
-<input id="roomId" type="text" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-white font-mono" placeholder="Ví dụ: ĐấuTrường123">
-
-</div>
-
-<button id="btnJoin" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-xl transition">
-
-Vào Phòng Đấu
-
-</button>
-
-</div>
-
-
-
-<div id="gameArea" class="hidden space-y-6">
-
-
-<div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center flex-wrap gap-2">
-
-<div>Phòng: <span id="roomDisplay" class="font-mono text-amber-400 font-bold">---</span></div>
-
-<div class="flex gap-4 text-xs font-medium">
-
-<span id="p1Status" class="text-slate-400"><i class="fa-solid fa-circle mr-1"></i> Người chơi 1: Chờ...</span>
-
-<span id="p2Status" class="text-slate-400"><i class="fa-solid fa-circle mr-1"></i> Người chơi 2: Chờ...</span>
-
-</div>
-
-</div>
-
-
-
-<div class="bg-amber-500/10 border-l-4 border-amber-500 p-5 rounded-r-xl">
-
-<p class="text-xs font-bold text-amber-500 uppercase tracking-wider mb-1">Đề bài dịch thuật (Tiếng Việt):</p>
-
-<p id="vietnameseQuestion" class="text-xl font-bold text-white italic">Đang đợi tải câu hỏi từ hệ thống...</p>
-
-</div>
-
-
-
-<div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg">
-
-<label class="block text-sm font-semibold text-slate-300 mb-2">Dịch câu trên sang tiếng Anh:</label>
-
-<textarea id="userTranslation" rows="3" class="w-full p-4 bg-slate-900 border border-slate-700 rounded-xl text-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono text-sm" placeholder="Gõ câu dịch tiếng Anh của bạn tại đây..."></textarea>
-
-
-<div class="mt-4 flex justify-end">
-
-<button id="btnSubmit" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-2.5 px-6 rounded-xl transition flex items-center gap-2">
-
-<i class="fa-solid fa-paper-plane"></i> Nộp Bài Giải
-
-</button>
-
-</div>
-
-</div>
-
-
-
-<div id="battleResult" class="hidden bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4">
-
-<h3 class="text-lg font-bold text-amber-400 border-b border-slate-700 pb-2">
-
-<i class="fa-solid fa-trophy mr-2"></i>Kết Quả Đối Kháng Chi Tiết
-
-</h3>
-
-
-
-<div class="p-3 bg-slate-900 rounded-xl border border-emerald-500/30">
-
-<span class="text-xs font-bold text-emerald-400 uppercase block mb-1">Đáp án chuẩn của hệ thống:</span>
-
-<p id="correctAnswerDisplay" class="font-mono text-sm font-bold text-emerald-300"></p>
-
-</div>
-
-
-
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-<div class="p-4 bg-slate-900 rounded-xl">
-
-<p class="text-xs font-bold text-slate-400 mb-2" id="p1NameTitle">Người chơi 1:</p>
-
-<div id="p1DiffOutput" class="font-mono text-sm min-h-[50px] leading-relaxed"></div>
-
-</div>
-
-
-
-<div class="p-4 bg-slate-900 rounded-xl">
-
-<p class="text-xs font-bold text-slate-400 mb-2" id="p2NameTitle">Người chơi 2:</p>
-
-<div id="p2DiffOutput" class="font-mono text-sm min-h-[50px] leading-relaxed"></div>
-
-</div>
-
-</div>
-
-
-
-<div class="flex justify-center pt-2">
-
-<button id="btnNextDuel" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-xl text-sm transition">
-
-Qua Câu Tiếp Theo <i class="fa-solid fa-arrow-right ml-1"></i>
-
-</button>
-
-</div>
-
-</div>
-
-
-
-</div>
-
-</div>
-
-
-
-<script>
-
-// =========================================================================
-
-// !!! CHÚ Ý: BẮT BUỘC PHẢI THAY THÔNG TIN CỦA BẠN VÀO ĐÂY ĐỂ CHẠY ĐƯỢC !!!
-
-// =========================================================================
-
-const firebaseConfig = {
-
-apiKey: "AIzaSyAOFJ2zFfvStGSitNEgcIG5sCrXSlRziMc",
-
-authDomain: "dictation-duel.firebaseapp.com",
-
-databaseURL: "https://dictation-duel-default-rtdb.firebaseio.com",
-
-projectId: "dictation-duel",
-
-storageBucket: "dictation-duel.firebasestorage.app",
-
-messagingSenderId: "77968104604",
-
-appId: "1:77968104604:web:489126c2010a8ad7aa6159",
-
-measurementId: "G-JWZQPZQX8T"
-
-};
-
-firebase.initializeApp(firebaseConfig);
-
-const database = firebase.database();
-
-
-
-// Kho câu hỏi mẫu chung cho trận đấu
-
-const duelQuestions = [
-
-{ vi: "đây có lẽ là cái cốc sạch nhất rồi", en: "this is probably the cleanest cup" },
-
-{ vi: "Có công mài sắt có ngày nên kim", en: "Practice makes perfect" },
-
-{ vi: "Mọi thứ đều khó khăn trước khi nó trở nên dễ dàng", en: "Everything is difficult before it is easy" },
-
-{ vi: "Hôm nay là ngày đầu tiên đi học", en: "Today is the first day of school" }
-
-];
-
-
-
-// Trạng thái local của người chơi
-
-let myName = "";
-
-let myRoom = "";
-
-let myPlayerSlot = ""; // 'p1' hoặc 'p2'
-
-let currentQuestionIdx = 0;
-
-let localCurrentIdx = -1; // Biến theo dõi để tự động chuyển câu mới mượt mà giữa các máy
-
-
-
-// Dom elements
-
-const setupArea = document.getElementById('setupArea');
-
-const gameArea = document.getElementById('gameArea');
-
-const usernameInput = document.getElementById('username');
-
-const roomIdInput = document.getElementById('roomId');
-
-const btnJoin = document.getElementById('btnJoin');
-
-const roomDisplay = document.getElementById('roomDisplay');
-
-const vietnameseQuestion = document.getElementById('vietnameseQuestion');
-
-const userTranslation = document.getElementById('userTranslation');
-
-const btnSubmit = document.getElementById('btnSubmit');
-
-const battleResult = document.getElementById('battleResult');
-
-const correctAnswerDisplay = document.getElementById('correctAnswerDisplay');
-
-
-
-const p1Status = document.getElementById('p1Status');
-
-const p2Status = document.getElementById('p2Status');
-
-const p1NameTitle = document.getElementById('p1NameTitle');
-
-const p2NameTitle = document.getElementById('p2NameTitle');
-
-const p1DiffOutput = document.getElementById('p1DiffOutput');
-
-const p2DiffOutput = document.getElementById('p2DiffOutput');
-
-const btnNextDuel = document.getElementById('btnNextDuel');
-
-
-
-// 1. Nhấn nút Tham gia phòng
-
-btnJoin.addEventListener('click', () => {
-
-myName = usernameInput.value.trim();
-
-myRoom = roomIdInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-
-
-
-if (!myName || !myRoom) {
-
-alert("Vui lòng điền đầy đủ Tên và Mã phòng!");
-
-return;
-
-}
-
-
-
-const roomRef = database.ref('rooms/' + myRoom);
-
-
-roomRef.once('value').then((snapshot) => {
-
-let roomData = snapshot.val();
-
-
-if (!roomData) {
-
-// Nếu phòng chưa có ai, mình là Người chơi 1 (p1)
-
-myPlayerSlot = 'p1';
-
-roomRef.set({
-
-p1: { name: myName, answer: "", submitted: false },
-
-p2: { name: "", answer: "", submitted: false },
-
-currentIdx: 0
-
-});
-
-} else if (!roomData.p2 || !roomData.p2.name) {
-
-// ĐÃ SỬA LỖI: Kiểm tra an toàn xem p2 đã tồn tại chưa để tránh crash web
-
-myPlayerSlot = 'p2';
-
-roomRef.child('p2').set({ name: myName, answer: "", submitted: false });
-
-} else {
-
-// Phòng đã đủ 2 người
-
-alert("Phòng này đã đầy người chơi rồi! Hãy nhập mã phòng khác.");
-
-return;
-
-}
-
-
-
-// Chuyển đổi màn hình giao diện
-
-setupArea.classList.add('hidden');
-
-gameArea.classList.remove('hidden');
-
-roomDisplay.textContent = myRoom.toUpperCase();
-
-
-
-// Bắt đầu lắng nghe biến động thời gian thực từ phòng chơi
-
-listenToRoom();
-
-}).catch(err => {
-
-console.error(err);
-
-alert("Không kết nối được Firebase! Hãy kiểm tra lại thông tin config hoặc tab Rules (Luật bảo mật) trên Firebase.");
-
-});
-
-});
-
-
-
-// 2. Lắng nghe cập nhật thời gian thực từ Firebase
-
-function listenToRoom() {
-
-database.ref('rooms/' + myRoom).on('value', (snapshot) => {
-
-const data = snapshot.val();
-
-if (!data) return;
-
-
-
-currentQuestionIdx = data.currentIdx || 0;
-
-vietnameseQuestion.textContent = `${currentQuestionIdx + 1}. ${duelQuestions[currentQuestionIdx].vi}`;
-
-
-
-// ĐÃ SỬA LỖI: Tự động reset giao diện, xóa chữ cũ khi có bất kỳ ai nhấn "Qua Câu Tiếp Theo"
-
-if (currentQuestionIdx !== localCurrentIdx) {
-
-localCurrentIdx = currentQuestionIdx;
-
-userTranslation.value = "";
-
-userTranslation.disabled = false;
-
-btnSubmit.disabled = false;
-
-battleResult.classList.add('hidden');
-
-}
-
-
-
-// Cập nhật thanh hiển thị trạng thái đã nộp bài hay chưa công bằng
-
-if (data.p1 && data.p1.name) {
-
-p1Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p1.name}: ${data.p1.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
-
-}
-
-if (data.p2 && data.p2.name) {
-
-p2Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p2.name}: ${data.p2.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
-
-} else {
-
-p2Status.innerHTML = `<i class="fa-solid fa-circle text-slate-600 mr-1"></i> Đang chờ người thứ 2 vào phòng...`;
-
-}
-
-
-
-// ĐIỀU KIỆN KÍCH HOẠT: Khi cả 2 người cùng nộp bài (submitted == true)
-
-if (data.p1 && data.p2 && data.p1.submitted && data.p2.submitted) {
-
-revealAnswers(data);
-
-}
-
-});
-
-}
-
-
-
-// 3. Người chơi nộp câu giải
-
-btnSubmit.addEventListener('click', () => {
-
-const ans = userTranslation.value.trim();
-
-if (!ans) {
-
-alert("Đừng nộp ô trống chứ!");
-
-return;
-
-}
-
-
-
-// Gửi dữ liệu bài làm lên Firebase slot của chính mình
-
-database.ref(`rooms/${myRoom}/${myPlayerSlot}`).update({
-
-answer: ans,
-
-submitted: true
-
-});
-
-btnSubmit.disabled = true; // Khóa nút sau khi nộp
-
-userTranslation.disabled = true; // Khóa ô nhập không cho sửa sau khi nộp
-
-});
-
-
-
-// 4. Công bố kết quả và hiển thị bài làm của cả hai bên
-
-function revealAnswers(roomData) {
-
-const targetAnswer = duelQuestions[currentQuestionIdx].en;
-
-correctAnswerDisplay.textContent = targetAnswer;
-
-
-
-p1NameTitle.textContent = `${roomData.p1.name} đã dịch:`;
-
-p2NameTitle.textContent = `${roomData.p2.name} đã dịch:`;
-
-
-
-// Dùng thuật toán so sánh từ để render lỗi sai cho cả Player 1 và Player 2
-
-p1DiffOutput.innerHTML = generateDiffHTML(targetAnswer, roomData.p1.answer);
-
-p2DiffOutput.innerHTML = generateDiffHTML(targetAnswer, roomData.p2.answer);
-
-
-
-battleResult.classList.remove('hidden');
-
-}
-
-
-
-// 5. Nút chuyển sang câu đấu tiếp theo (Bất kỳ ai bấm nút này, cả 2 máy sẽ cùng chuyển)
-
-btnNextDuel.addEventListener('click', () => {
-
-let nextIdx = currentQuestionIdx + 1;
-
-if (nextIdx >= duelQuestions.length) {
-
-nextIdx = 0; // Quay vòng lại câu 1 nếu hết câu hỏi
-
-}
-
-
-
-// Reset trạng thái nộp bài của cả 2 slot về mặc định để chuẩn bị câu mới
-
-database.ref('rooms/' + myRoom).update({
-
-currentIdx: nextIdx,
-
-"p1/submitted": false,
-
-"p1/answer": "",
-
-"p2/submitted": false,
-
-"p2/answer": ""
-
-});
-
-});
-
-
-
-// Thuật toán so sánh từng từ thông minh
-
-function generateDiffHTML(targetText, userStr) {
-
-function cleanWord(word) {
-
-return word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"");
-
-}
-
-const targetWords = targetText.split(/\s+/);
-
-const userWords = userStr.split(/\s+/).filter(w => w !== "");
-
-
-
-let outputHTML = "";
-
-let tIdx = 0, uIdx = 0;
-
-
-
-while (tIdx < targetWords.length || uIdx < userWords.length) {
-
-const tWord = targetWords[tIdx];
-
-const uWord = userWords[uIdx];
-
-
-
-if (tWord && uWord && cleanWord(tWord) === cleanWord(uWord)) {
-
-outputHTML += `<span class="text-emerald-400 font-bold">${uWord}</span> `;
-
-tIdx++; uIdx++;
-
-} else if (tWord && uWord && cleanWord(tWord) !== cleanWord(uWord)) {
-
-if (targetWords[tIdx + 1] && cleanWord(targetWords[tIdx + 1]) === cleanWord(uWord)) {
-
-outputHTML += `<span class="text-amber-500 line-through">[Thiếu]</span> `;
-
-tIdx++;
-
-} else if (userWords[uIdx + 1] && cleanWord(tWord) === cleanWord(userWords[uIdx + 1])) {
-
-outputHTML += `<span class="text-rose-500 line-through">${uWord}</span> `;
-
-uIdx++;
-
-} else {
-
-outputHTML += `<span class="text-rose-400 border-b border-rose-500 font-bold">${uWord}</span> <span class="text-slate-500 text-xs">(${tWord})</span> `;
-
-tIdx++; uIdx++;
-
-}
-
-} else if (!tWord && uWord) {
-
-outputHTML += `<span class="text-rose-500 line-through">${uWord}</span> `;
-
-uIdx++;
-
-} else if (tWord && !uWord) {
-
-outputHTML += `<span class="text-amber-500 line-through">[Thiếu]</span> `;
-
-tIdx++;
-
-}
-
-}
-
-return outputHTML.trim();
-
-}
-
-</script>
-
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-amber-500 mb-2">
+                <i class="fa-solid fa-bolt mr-2"></i>Dictation Duel (Chơi 2 Người)
+            </h1>
+            <p class="text-slate-400 text-sm">Vào chung một Phòng, dịch câu và xem đáp án của nhau theo thời gian thực.</p>
+        </header>
+
+        <div id="setupArea" class="bg-slate-800 p-6 rounded-2xl border border-slate-700 max-w-md mx-auto shadow-xl">
+            <h2 class="text-lg font-bold mb-4 text-slate-200"><i class="fa-solid fa-door-open mr-2 text-amber-500"></i>Thiết Lập Phòng Chơi</h2>
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tên của bạn:</label>
+                <input id="username" type="text" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-white" placeholder="Ví dụ: Anh Tuấn">
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Mã phòng (Gõ giống nhau để vào chung):</label>
+                <input id="roomId" type="text" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-white font-mono" placeholder="Ví dụ: ĐấuTrường123">
+            </div>
+            <button id="btnJoin" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-xl transition">
+                Vào Phòng Đấu
+            </button>
+        </div>
+
+        <div id="gameArea" class="hidden space-y-6">
+            
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center flex-wrap gap-2">
+                <div>Phòng: <span id="roomDisplay" class="font-mono text-amber-400 font-bold">---</span></div>
+                <div class="flex gap-4 text-xs font-medium">
+                    <span id="p1Status" class="text-slate-400"><i class="fa-solid fa-circle mr-1"></i> Người chơi 1: Chờ...</span>
+                    <span id="p2Status" class="text-slate-400"><i class="fa-solid fa-circle mr-1"></i> Người chơi 2: Chờ...</span>
+                </div>
+            </div>
+
+            <div class="bg-amber-500/10 border-l-4 border-amber-500 p-5 rounded-r-xl">
+                <p class="text-xs font-bold text-amber-500 uppercase tracking-wider mb-1">Đề bài dịch thuật (Tiếng Việt):</p>
+                <p id="vietnameseQuestion" class="text-xl font-bold text-white italic">Đang đợi tải câu hỏi từ hệ thống...</p>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg">
+                <label class="block text-sm font-semibold text-slate-300 mb-2">Dịch câu trên sang tiếng Anh:</label>
+                <textarea id="userTranslation" rows="3" class="w-full p-4 bg-slate-900 border border-slate-700 rounded-xl text-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono text-sm" placeholder="Gõ câu dịch tiếng Anh của bạn tại đây..."></textarea>
+                
+                <div class="mt-4 flex justify-end">
+                    <button id="btnSubmit" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-2.5 px-6 rounded-xl transition flex items-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i> Nộp Bài Giải
+                    </button>
+                </div>
+            </div>
+
+            <div id="battleResult" class="hidden bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4">
+                <h3 class="text-lg font-bold text-amber-400 border-b border-slate-700 pb-2">
+                    <i class="fa-solid fa-trophy mr-2"></i>Kết Quả Đối Kháng Chi Tiết
+                </h3>
+
+                <div class="p-3 bg-slate-900 rounded-xl border border-emerald-500/30">
+                    <span class="text-xs font-bold text-emerald-400 uppercase block mb-1">Đáp án chuẩn của hệ thống:</span>
+                    <p id="correctAnswerDisplay" class="font-mono text-sm font-bold text-emerald-300"></p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 bg-slate-900 rounded-xl">
+                        <p class="text-xs font-bold text-slate-400 mb-2" id="p1NameTitle">Người chơi 1:</p>
+                        <div id="p1DiffOutput" class="font-mono text-sm min-h-[50px] leading-relaxed"></div>
+                    </div>
+
+                    <div class="p-4 bg-slate-900 rounded-xl">
+                        <p class="text-xs font-bold text-slate-400 mb-2" id="p2NameTitle">Người chơi 2:</p>
+                        <div id="p2DiffOutput" class="font-mono text-sm min-h-[50px] leading-relaxed"></div>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 text-xs font-semibold text-slate-400 justify-center pt-2 border-t border-slate-700">
+                    <span><span class="inline-block w-2 h-2 bg-emerald-400 mr-1 rounded-full"></span>Đúng</span>
+                    <span><span class="inline-block w-2 h-2 bg-rose-400 mr-1 rounded-full"></span>Sai / Thừa</span>
+                    <span><span class="inline-block w-2 h-2 bg-amber-500 mr-1 rounded-full"></span>Thiếu từ</span>
+                </div>
+
+                <div class="flex justify-center pt-2">
+                    <button id="btnNextDuel" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-xl text-sm transition">
+                        Qua Câu Tiếp Theo <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // === CẤU HÌNH FIREBASE ===
+        const firebaseConfig = {
+            databaseURL: "https://dictation-duel-sandbox-default-rtdb.firebaseio.com/"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Mảng câu hỏi gốc của bạn
+        let duelQuestions = [
+            { vi: "Đây có lẽ là cái cốc sạch nhất rồi", en: "This is probably the cleanest cup" },
+            { vi: "Mọi thứ đều khó khăn trước khi nó trở nên dễ dàng", en: "Everything is difficult before it is easy" },
+            { vi: "Cô ấy đeo cặp sách mới lên", en: "She puts on her new school bag" },
+            { vi: "Cuối tuần này chúng ta đi cắm trại nhé", en: "Let's go camping this weekend" },
+            { vi: "Chúng ta cần đóng gói một số thứ hữu ích", en: "We need to pack some essentials" },
+            { vi: "Anh ấy dựng lều", en: "He sets up the tent" },
+            { vi: "Kem hôm nay xin nghỉ", en: "Kem is absent today" },
+            { vi: "Trời đang mưa to", en: "It's raining heavily" },
+            { vi: "Trời đang nhiều gió", en: "It's really windy outside" },
+            { vi: "Bạn trọ ở đâu?", en: "Where are you staying?" },
+            { vi: "Tôi đang ở trọ một mình trong một căn hộ nhỏ gần trường đại học", en: "I am renting a small room near my college by myself" },
+            { vi: "Phòng trọ của tôi rất nóng vào mùa hè vì nó không có điều hòa", en: "My room gets scorching hot in the summer because there is no AC" },
+            { vi: "Chịu hết nổi rồi! Mình phải tìm một phòng trọ khác có điều hòa thôi.", en: "I can't stand it anymore! I have to find another room with AC" },
+            { vi: "Cô ấy cute nhưng cô ấy nghịch ngợm quá", en: "She's cute, but she's so naughty" },
+            { vi: "Bạn thuê trọ hết bao nhiêu một tháng?", en: "How much is your monthly rent?" },
+            { vi: "Cái điều hòa này giá bao nhiêu tiền vậy?", en: "How much does this AC cost?" },
+            { vi: "Tiền điện nước hằng tháng ở căn hộ của bạn tốn bao nhiêu?", en: "How much do your monthly utilities cost?" },
+            { vi: "Từ phòng trọ của bạn đến trường đại học bao xa?", en: "How far is it from your room to your college?" },
+            { vi: "Từ đây đến trạm xe buýt gần nhất bao xa?", en: "How far is it from here to the nearest bus stop?" },
+            { vi: "Đi làm mất bao lâu thời gian?", en: "How long does it take to commute to work?" },
+            { vi: "Đi bộ ra chợ mất bao lâu thời gian?", en: "How long does it take to walk to the market?" },
+            { vi: "Đường nào đi ra sân bay tốt nhất/tiện nhất?", en: "What is the best way to get to the airport?" },
+            { vi: "Cách nào để tránh tắc đường tốt nhất?", en: "What is the best way to avoid traffic jams?" },
+            { vi: "Tại sao bạn không tìm một người ở ghép để chia tiền phòng?", en: "Why don't you look for a roommate to share the rent?" },
+            { vi: "Tại sao bạn không bảo chủ nhà sửa nhà vệ sinh đi?", en: "Why don't you ask the landlord to fix the toilet?" },
+            { vi: "Bạn nên đọc kỹ hợp đồng trước khi ký.", en: "You should read the contract carefully before signing." },
+            { vi: "Tốt hơn là nên tìm một chỗ ở gần trạm xe buýt.", en: "It's better to find a place near the bus station." },
+            { vi: "Phòng có giường không?", en: "Does it have a bed?" },
+            { vi: "Phòng có mạng Wi-Fi không?", en: "Does it have Wi-Fi?" },
+            { vi: "Tôi thử cái này được không?", en: "Can I try this on?" },
+            { vi: "Tôi trả bằng thẻ được không?", en: "Can I pay by card?" },
+            { vi: "Tôi lấy hóa đơn được không?", en: "Can I get a receipt?" },
+            { vi: "Từ này đọc như nào?", en: "How do you say this word?" },
+            { vi: "Người đàn ông áo trắng là John và bên cạnh là Vàng Anh", en: "The man in the white shirt is John, and the person next to him is Vang Anh" },
+            { vi: "Ông David đang gọi điện tìm bạn đấy.", en: "David is asking for you on the telephone" },
+            { vi: "Bạn chưa đưa tôi địa chỉ của bạn", en: "You haven't given me your address" },
+            { vi: "Có cái hố trên vỉa hè", en: "There's a hole in the pavement" },
+            { vi: "Cẩn thận không đụng đầu", en: "Mind your head" },
+            { vi: "Đây là lần đầu bạn đến Việt Nam phải không?", en: "This is your first visit to Vietnam, isn't it?" },
+            { vi: "Anh thích bóng đá phải không?", en: "You are interested in football, aren't you?" },
+            { vi: "Tôi được biết anh đang nghiên cứu văn học Anh", en: "I've been told you're doing research in English literature" },
+            { vi: "Tôi nghĩ rằng anh đã đi ngắm cảnh", en: "I expect you've already been on a sight-seeing tour" },
+            { vi: "Tôi nghĩ bạn chưa gặp thư kí của tôi", en: "I don't think you've met my secretary" },
+            { vi: "Nó tốt hơn tôi mong đợi", en: "It's even better than I expected" },
+            { vi: "Bạn sẽ sớm quen thôi", en: "You'll soon get used to it" },
+            { vi: "Nó khác với những gì tôi được học trong sách giáo khoa", en: "It's quite different from what we learnt in our text-books" },
+            { vi: "Tôi e rằng tôi phải đi rồi", en: "I'm afraid I gotta go" },
+            { vi: "Tôi có mấy chuyện khẩn cấp cần làm", en: "I've got some urgent work to do" },
+            { vi: "Tôi phải dậy sớm vào sáng mai", en: "I've got to get up early tomorrow" },
+            { vi: "Khi nào anh khởi hành?", en: "When are you off?" },
+            { vi: "Chúc mừng anh đã thi đỗ", en: "Congratulations on passing your exam" },
+            { vi: "Tôi đứng thứ 2 trong cuộc thi cờ", en: "I came second in the chess competition" },
+            { vi: "Bạn thi cử sao rồi?", en: "How did your exams go?" },
+            { vi: "Bạn được mấy điểm?", en: "Which marks did you get?" },
+            { vi: "Tôi vừa đậu bằng lái xe", en: "I've just passed my driving test" },
+            { vi: "Tôi nghe rằng bạn giành giải nhất cuộc thi bóng bàn!", en: "I heard you took first place in the ping-pong tournament!" },
+            { vi: "Tôi chưa bao giờ nghĩ rằng mình thắng", en: "I never expected to win" },
+            { vi: "Cậu định khi nào cưới?", en: "When are you getting married?" },
+            { vi: "Phiền anh/chị chuyển giúp tôi lọ muối với?", en: "Could you pass the salt please?" },
+            { vi: "Anh có thể cho tôi mượn 1 bảng đến thứ 7 được không?", en: "Could you lend me a pound till Saturday?" },
+            { vi: "Tôi e là không được đâu (Trả lời cho câu: Bạn có phiền nếu tôi hút thuốc không?)", en: "I'd rather you didn't" },
+            { vi: "Tôi e là không được đâu (Trả lời cho câu: Tôi đỗ xe ở đây có ổn không?)", en: "I'd rather you didn't" },
+            { vi: "Tôi quên mang theo cuốn sách tôi đã hứa với bạn", en: "I forgot to bring the book I promised you" },
+            { vi: "Tối nay ta nên làm gì?", en: "What should we do tonight?" },
+            { vi: "Tom đã quên làm gì buổi sáng hôm nay?", en: "What did Tom forget to do this morning?" },
+            { vi: "Bạn định kể cho mọi người thật đấy à?", en: "Are you going to tell anyone?" },
+            { vi: "Bạn dậy mấy giờ hàng ngày?", en: "What time do you wake up everyday?" },
+            { vi: "Tôi tập thể dục khoảng 45 phút", en: "I work out for about 45 minutes" },
+            { vi: "Tôi chạy trên máy chạy bộ. Tôi nâng một ít tạ", en: "I run on the treadmill. I lift some weights" },
+            { vi: "Bạn ăn gì vào bữa sáng?", en: "What do you eat for breakfast?" },
+            { vi: "Thỉnh thoảng tôi nấu thỉnh thoảng tôi order đồ ăn", en: "Sometimes I cook, sometimes I order food" },
+            { vi: "Tôi không thích dành nhiều thời gian nấu ăn cả ngày", en: "I do not like to spend a lot of time cooking during the day" },
+            { vi: "Tối qua tôi đã làm món gà với rau củ và nó ngon tuyệt", en: "Last night I made chicken and vegetables and it was so good" }
+        ];
+
+        // === ĐOẠN ĐỒNG BỘ VÀ TỰ ĐỘNG ĐẨY LÊN DATA FIREBASE (ĐÃ SỬA LỖI NGHẼN MẠNG) ===
+        database.ref('questions').once('value')
+        .then((snapshot) => {
+            const data = snapshot.val();
+            if (data && data.length > 0) {
+                duelQuestions = data;
+                console.log("Đã lấy danh sách câu hỏi từ Firebase thành công!");
+            } else {
+                return database.ref('questions').set(duelQuestions).then(() => {
+                    console.log("Đã khởi tạo danh sách câu hỏi gốc lên Firebase thành công!");
+                });
+            }
+        })
+        .catch((error) => {
+            console.warn("Không kết nối được Firebase Questions:", error.message);
+            console.log("Hệ thống tự động chạy bằng bộ câu hỏi nội bộ cục bộ.");
+        });
+
+        // Trạng thái cục bộ của người chơi
+        let myName = "";
+        let myRoom = "";
+        let myPlayerSlot = ""; // 'p1' hoặc 'p2'
+        let currentQuestionIdx = 0;
+
+        // Dom elements
+        const setupArea = document.getElementById('setupArea');
+        const gameArea = document.getElementById('gameArea');
+        const usernameInput = document.getElementById('username');
+        const roomIdInput = document.getElementById('roomId');
+        const btnJoin = document.getElementById('btnJoin');
+        const roomDisplay = document.getElementById('roomDisplay');
+        const vietnameseQuestion = document.getElementById('vietnameseQuestion');
+        const userTranslation = document.getElementById('userTranslation');
+        const btnSubmit = document.getElementById('btnSubmit');
+        const battleResult = document.getElementById('battleResult');
+        const correctAnswerDisplay = document.getElementById('correctAnswerDisplay');
+
+        const p1Status = document.getElementById('p1Status');
+        const p2Status = document.getElementById('p2Status');
+        const p1NameTitle = document.getElementById('p1NameTitle');
+        const p2NameTitle = document.getElementById('p2NameTitle');
+        const p1DiffOutput = document.getElementById('p1DiffOutput');
+        const p2DiffOutput = document.getElementById('p2DiffOutput');
+        const btnNextDuel = document.getElementById('btnNextDuel');
+
+        // 1. Nhấn nút Tham gia phòng (ĐÃ CÓ BẮT LỖI TỰ ĐỘNG CHO CHƠI OFFLINE NẾU LỖI RULES)
+        btnJoin.addEventListener('click', () => {
+            myName = usernameInput.value.trim();
+            myRoom = roomIdInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+
+            if (!myName || !myRoom) {
+                alert("Vui lòng điền đầy đủ Tên và Mã phòng!");
+                return;
+            }
+
+            const roomRef = database.ref('rooms/' + myRoom);
+            
+            roomRef.once('value')
+            .then((snapshot) => {
+                let roomData = snapshot.val();
+                
+                if (!roomData) {
+                    // Mình là p1
+                    myPlayerSlot = 'p1';
+                    return roomRef.set({
+                        p1: { name: myName, answer: "", submitted: false },
+                        p2: { name: "", answer: "", submitted: false },
+                        currentIdx: 0
+                    });
+                } else if (!roomData.p2.name) {
+                    // Mình là p2
+                    myPlayerSlot = 'p2';
+                    return roomRef.child('p2').set({ name: myName, answer: "", submitted: false });
+                } else {
+                    alert("Phòng này đã đầy người chơi rồi! Hãy nhập mã phòng khác.");
+                    throw new Error("Room full");
+                }
+            })
+            .then(() => {
+                setupArea.classList.add('hidden');
+                gameArea.classList.remove('hidden');
+                roomDisplay.textContent = myRoom.toUpperCase();
+
+                listenToRoom();
+            })
+            .catch((error) => {
+                if (error.message !== "Room full") {
+                    console.error("Lỗi Firebase:", error);
+                    alert("Có lỗi Firebase (Kiểm tra lại Rules): " + error.message + "\nHệ thống sẽ cưỡng ép chuyển sang chế độ chơi để bạn kiểm tra giao diện!");
+                    
+                    // Cơ chế kích hoạt giao diện giả lập chơi cục bộ nếu Firebase của bạn bị khoá Rules hoàn toàn
+                    myPlayerSlot = 'p1';
+                    setupArea.classList.add('hidden');
+                    gameArea.classList.remove('hidden');
+                    roomDisplay.textContent = myRoom.toUpperCase() + " (LOCAL)";
+                    vietnameseQuestion.textContent = `1. ${duelQuestions[0].vi}`;
+                }
+            });
+        });
+
+        // 2. Lắng nghe cập nhật thời gian thực từ phòng chơi
+        function listenToRoom() {
+            database.ref('rooms/' + myRoom).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                currentQuestionIdx = data.currentIdx || 0;
+                if(currentQuestionIdx >= duelQuestions.length) currentQuestionIdx = 0;
+
+                vietnameseQuestion.textContent = `${currentQuestionIdx + 1}. ${duelQuestions[currentQuestionIdx].vi}`;
+
+                if (data.p1.name) {
+                    p1Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p1.name}: ${data.p1.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
+                }
+                if (data.p2.name) {
+                    p2Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p2.name}: ${data.p2.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
+                } else {
+                    p2Status.innerHTML = `<i class="fa-solid fa-circle text-slate-600 mr-1"></i> Đang chờ người thứ 2 vào phòng...`;
+                }
+
+                // Khi CẢ HAI cùng nộp bài
+                if (data.p1.submitted && data.p2.submitted) {
+                    revealAnswers(data);
+                } else {
+                    battleResult.classList.add('hidden');
+                    btnSubmit.disabled = false;
+                }
+            });
+        }
+
+        // 3. Người chơi nộp câu giải
+        btnSubmit.addEventListener('click', () => {
+            const ans = userTranslation.value.trim();
+            if (!ans) {
+                alert("Đừng nộp ô trống chứ!");
+                return;
+            }
+
+            // Nếu phòng đang chạy ở chế độ Local cứu hộ do lỗi Rules Firebase
+            if(roomDisplay.textContent.includes("LOCAL")) {
+                let fakeData = {
+                    p1: { name: myName, answer: ans, submitted: true },
+                    p2: { name: "Máy (Giả lập)", answer: duelQuestions[currentQuestionIdx].en, submitted: true }
+                };
+                revealAnswers(fakeData);
+                return;
+            }
+
+            database.ref(`rooms/${myRoom}/${myPlayerSlot}`).update({
+                answer: ans,
+                submitted: true
+            });
+            btnSubmit.disabled = true;
+        });
+
+        // 4. Công bố kết quả
+        function revealAnswers(roomData) {
+            const targetAnswer = duelQuestions[currentQuestionIdx].en;
+            correctAnswerDisplay.textContent = targetAnswer;
+
+            p1NameTitle.textContent = `${roomData.p1.name} đã dịch:`;
+            p2NameTitle.textContent = `${roomData.p2.name} đã dịch:`;
+
+            p1DiffOutput.innerHTML = generateDiffHTML(targetAnswer, roomData.p1.answer);
+            p2DiffOutput.innerHTML = generateDiffHTML(targetAnswer, roomData.p2.answer);
+
+            battleResult.classList.remove('hidden');
+        }
+
+        // 5. Chuyển câu đấu tiếp theo
+        btnNextDuel.addEventListener('click', () => {
+            let nextIdx = currentQuestionIdx + 1;
+            if (nextIdx >= duelQuestions.length) {
+                nextIdx = 0; 
+            }
+
+            if(roomDisplay.textContent.includes("LOCAL")) {
+                currentQuestionIdx = nextIdx;
+                vietnameseQuestion.textContent = `${currentQuestionIdx + 1}. ${duelQuestions[currentQuestionIdx].vi}`;
+                userTranslation.value = "";
+                battleResult.classList.add('hidden');
+                btnSubmit.disabled = false;
+                return;
+            }
+
+            database.ref('rooms/' + myRoom).update({
+                currentIdx: nextIdx,
+                "p1/submitted": false,
+                "p1/answer": "",
+                "p2/submitted": false,
+                "p2/answer": ""
+            });
+
+            userTranslation.value = "";
+        });
+
+        // === THUẬT TOÁN ĐỐI CHIẾU CHỮ GỐC ===
+        function generateDiffHTML(targetText, userStr) {
+            function cleanWord(word) {
+                return word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"");
+            }
+            const targetWords = targetText.split(/\s+/);
+            const userWords = userStr.split(/\s+/).filter(w => w !== "");
+
+            let outputHTML = "";
+            let tIdx = 0, uIdx = 0;
+
+            while (tIdx < targetWords.length || uIdx < userWords.length) {
+                const tWord = targetWords[tIdx];
+                const uWord = userWords[uIdx];
+
+                if (tWord && uWord && cleanWord(tWord) === cleanWord(uWord)) {
+                    outputHTML += `<span class="text-emerald-400 font-bold">${uWord}</span> `;
+                    tIdx++; uIdx++;
+                } else if (tWord && uWord && cleanWord(tWord) !== cleanWord(uWord)) {
+                    if (targetWords[tIdx + 1] && cleanWord(targetWords[tIdx + 1]) === cleanWord(uWord)) {
+                        outputHTML += `<span class="bg-amber-950 text-amber-500 px-1 rounded line-through decoration-amber-500">[Thiếu: ${tWord}]</span> `;
+                        tIdx++;
+                    } else if (userWords[uIdx + 1] && cleanWord(tWord) === cleanWord(userWords[uIdx + 1])) {
+                        outputHTML += `<span class="bg-rose-950 text-rose-500 px-1 rounded line-through">${uWord}</span> `;
+                        uIdx++;
+                    } else {
+                        outputHTML += `<span class="bg-rose-950 text-rose-400 border-b-2 border-rose-500 font-bold">${uWord}</span> <span class="text-slate-500 text-xs">(${tWord})</span> `;
+                        tIdx++; uIdx++;
+                    }
+                } else if (!tWord && uWord) {
+                    outputHTML += `<span class="bg-rose-950 text-rose-500 px-1 rounded line-through">${uWord}</span> `;
+                    uIdx++;
+                } else if (tWord && !uWord) {
+                    outputHTML += `<span class="bg-amber-950 text-amber-500 px-1 rounded line-through decoration-amber-500">[Thiếu: ${tWord}]</span> `;
+                    tIdx++;
+                }
+            }
+            return outputHTML.trim();
+        }
+    </script>
 </body>
-
-</html> 
-
+</html>
