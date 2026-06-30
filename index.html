@@ -94,9 +94,14 @@
     </div>
 
     <script>
-        // Cấu hình Firebase công cộng (Dùng thử nghiệm miễn phí)
+        // =========================================================================
+        // !!! CHÚ Ý: BẮT BUỘC PHẢI THAY THÔNG TIN CỦA BẠN VÀO ĐÂY ĐỂ CHẠY ĐƯỢC !!!
+        // =========================================================================
         const firebaseConfig = {
-            databaseURL: "https://dictation-duel-sandbox-default-rtdb.firebaseio.com/"
+            apiKey: "AIzaSyThay_Key_Firebase_Cua_Ban_Vao_Day_Nhe", 
+            authDomain: "dictation-duel-sandbox.firebaseapp.com",
+            databaseURL: "https://dictation-duel-sandbox-default-rtdb.firebaseio.com/",
+            projectId: "dictation-duel-sandbox"
         };
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
@@ -114,6 +119,7 @@
         let myRoom = "";
         let myPlayerSlot = ""; // 'p1' hoặc 'p2'
         let currentQuestionIdx = 0;
+        let localCurrentIdx = -1; // Biến theo dõi để tự động chuyển câu mới mượt mà giữa các máy
 
         // Dom elements
         const setupArea = document.getElementById('setupArea');
@@ -146,10 +152,9 @@
                 return;
             }
 
-            // Kết nối vào nhánh database của phòng đó
             const roomRef = database.ref('rooms/' + myRoom);
             
-            roomRef.once('value', (snapshot) => {
+            roomRef.once('value').then((snapshot) => {
                 let roomData = snapshot.val();
                 
                 if (!roomData) {
@@ -160,8 +165,8 @@
                         p2: { name: "", answer: "", submitted: false },
                         currentIdx: 0
                     });
-                } else if (!roomData.p2.name) {
-                    // Nếu phòng đã có p1 nhưng trống p2, mình là Người chơi 2 (p2)
+                } else if (!roomData.p2 || !roomData.p2.name) {
+                    // ĐÃ SỬA LỖI: Kiểm tra an toàn xem p2 đã tồn tại chưa để tránh crash web
                     myPlayerSlot = 'p2';
                     roomRef.child('p2').set({ name: myName, answer: "", submitted: false });
                 } else {
@@ -177,6 +182,9 @@
 
                 // Bắt đầu lắng nghe biến động thời gian thực từ phòng chơi
                 listenToRoom();
+            }).catch(err => {
+                console.error(err);
+                alert("Không kết nối được Firebase! Hãy kiểm tra lại thông tin config hoặc tab Rules (Luật bảo mật) trên Firebase.");
             });
         });
 
@@ -187,25 +195,30 @@
                 if (!data) return;
 
                 currentQuestionIdx = data.currentIdx || 0;
-                // Cập nhật câu hỏi hiện tại cho cả 2 máy
                 vietnameseQuestion.textContent = `${currentQuestionIdx + 1}. ${duelQuestions[currentQuestionIdx].vi}`;
 
-                // Cập nhật thanh hiển thị trạng thái đã nộp bài hay chưa
-                if (data.p1.name) {
+                // ĐÃ SỬA LỖI: Tự động reset giao diện, xóa chữ cũ khi có bất kỳ ai nhấn "Qua Câu Tiếp Theo"
+                if (currentQuestionIdx !== localCurrentIdx) {
+                    localCurrentIdx = currentQuestionIdx;
+                    userTranslation.value = ""; 
+                    userTranslation.disabled = false;
+                    btnSubmit.disabled = false;
+                    battleResult.classList.add('hidden');
+                }
+
+                // Cập nhật thanh hiển thị trạng thái đã nộp bài hay chưa công bằng
+                if (data.p1 && data.p1.name) {
                     p1Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p1.name}: ${data.p1.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
                 }
-                if (data.p2.name) {
+                if (data.p2 && data.p2.name) {
                     p2Status.innerHTML = `<i class="fa-solid fa-circle text-emerald-500 mr-1"></i> ${data.p2.name}: ${data.p2.submitted ? 'Đã nộp bài' : 'Đang dịch...'}`;
                 } else {
                     p2Status.innerHTML = `<i class="fa-solid fa-circle text-slate-600 mr-1"></i> Đang chờ người thứ 2 vào phòng...`;
                 }
 
                 // ĐIỀU KIỆN KÍCH HOẠT: Khi cả 2 người cùng nộp bài (submitted == true)
-                if (data.p1.submitted && data.p2.submitted) {
+                if (data.p1 && data.p2 && data.p1.submitted && data.p2.submitted) {
                     revealAnswers(data);
-                } else {
-                    battleResult.classList.add('hidden');
-                    btnSubmit.disabled = false;
                 }
             });
         }
@@ -224,6 +237,7 @@
                 submitted: true
             });
             btnSubmit.disabled = true; // Khóa nút sau khi nộp
+            userTranslation.disabled = true; // Khóa ô nhập không cho sửa sau khi nộp
         });
 
         // 4. Công bố kết quả và hiển thị bài làm của cả hai bên
@@ -256,11 +270,9 @@
                 "p2/submitted": false,
                 "p2/answer": ""
             });
-
-            userTranslation.value = "";
         });
 
-        // Thuật toán so sánh từ (Giữ nguyên tính năng chấm điểm thông minh của các version trước)
+        // Thuật toán so sánh từng từ thông minh
         function generateDiffHTML(targetText, userStr) {
             function cleanWord(word) {
                 return word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"");
